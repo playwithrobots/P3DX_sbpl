@@ -1,0 +1,11 @@
+<launch>
+  <!-- kinect nodes -->
+  <node pkg="P3DX_sbpl" type="ADstar" name="ADstar">
+  </node>
+
+
+  
+  <!-- P3DX_motion -->
+  <node pkg="P3DX_sbpl" type="P3DX_motion" name="P3DX_motion" args="-robotPort /dev/ttyUSB0">
+  </node>
+</launch>

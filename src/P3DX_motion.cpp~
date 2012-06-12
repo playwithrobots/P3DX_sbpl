@@ -1,0 +1,319 @@
+#include "Aria.h"
+#include <ros/ros.h>
+#include <sbpl_msg/sbpl_msg.h>
+#include <sbpl_msg/sonar_msg.h>
+#define N 1
+#define S 2
+#define E 3
+#define W 4       
+#define NW 5
+#define NE 6
+#define SW 7
+#define SE 8
+#define DISTANCE_H 400
+#define DISTANCE_D (DISTANCE_H * 1.4 )
+#define SONAR_NUM 8
+#define SONAR_THRESH (560)
+unsigned char P3DX_dir=4;
+int x,y,newx,newy; 
+bool start_flag=false;
+int result[2]={0};
+class ConnHandler
+{
+public:
+  // Constructor
+  ConnHandler(ArRobot *robot);
+  // Destructor, its just empty
+  ~ConnHandler(void) {}
+  // to be called if the connection was made
+  void connected(void);
+  // to call if the connection failed
+  void connFail(void);
+  // to be called if the connection was lost
+  void disconnected(void);
+protected:
+  // robot pointer
+  ArRobot *myRobot;
+  // the functor callbacks
+  ArFunctorC<ConnHandler> myConnectedCB;
+  ArFunctorC<ConnHandler> myConnFailCB;
+  ArFunctorC<ConnHandler> myDisconnectedCB;
+};
+
+ConnHandler::ConnHandler(ArRobot *robot) :
+  myConnectedCB(this, &ConnHandler::connected),  
+  myConnFailCB(this, &ConnHandler::connFail),
+  myDisconnectedCB(this, &ConnHandler::disconnected)
+
+{
+  myRobot = robot;
+  myRobot->addConnectCB(&myConnectedCB, ArListPos::FIRST);
+  myRobot->addFailedConnectCB(&myConnFailCB, ArListPos::FIRST);
+  myRobot->addDisconnectNormallyCB(&myDisconnectedCB, ArListPos::FIRST);
+  myRobot->addDisconnectOnErrorCB(&myDisconnectedCB, ArListPos::FIRST);
+}
+
+// just exit if the connection failed
+void ConnHandler::connFail(void)
+{
+  printf("P3DX_sbpl connection handler: Failed to connect.\n");
+  myRobot->stopRunning();
+  Aria::shutdown();
+  return;
+}
+
+// turn on motors, and off sonar, and off amigobot sounds, when connected
+void ConnHandler::connected(void)
+{
+  printf("P3DX_sbpl connection handler: Connected\n");
+  myRobot->comInt(ArCommands::SONAR, 1);
+  myRobot->comInt(ArCommands::ENABLE, 1);
+  myRobot->comInt(ArCommands::SOUNDTOG, 1);
+}
+
+// lost connection, so just exit
+void ConnHandler::disconnected(void)
+{
+  printf("P3DX_sbpl connection handler: Lost connection, exiting program.\n");
+  exit(0);
+}
+
+void go_P3DX(void)
+{   	int angle=0,distance=0;
+	if(newx==x)		
+	{
+		if(newy==y-1)
+		{
+			if(P3DX_dir==N)	      angle=0;
+			else if(P3DX_dir==S)  angle=180;
+			else if(P3DX_dir==E)  angle=-90;
+			else if(P3DX_dir==W)  angle=90;
+			else if(P3DX_dir==NW) angle=45;
+			else if(P3DX_dir==NE) angle=-45;
+			else if(P3DX_dir==SW) angle=135;
+			else if(P3DX_dir==SE) angle=-135;			
+			P3DX_dir=N;
+			distance=DISTANCE_H;
+		}
+		else if(newy==y+1)
+		{
+			if(P3DX_dir==S)	      angle=0;
+			else if(P3DX_dir==N)  angle=180;
+			else if(P3DX_dir==E)  angle=90;
+			else if(P3DX_dir==W)  angle=-90;
+			else if(P3DX_dir==NW) angle=-135;
+			else if(P3DX_dir==NE) angle=135;
+			else if(P3DX_dir==SW) angle=-45;
+			else if(P3DX_dir==SE) angle=45;			
+			P3DX_dir=S;
+			distance=DISTANCE_H;
+		}
+	}        
+	else if(newx==x+1)		
+	{
+		if(newy==y-1)
+		{
+			if(P3DX_dir==NW)      angle=0;
+			else if(P3DX_dir==S)  angle=135;
+			else if(P3DX_dir==E)  angle=-135;
+			else if(P3DX_dir==W)  angle=45;
+			else if(P3DX_dir==N)  angle=-45;
+			else if(P3DX_dir==NE) angle=-90;
+			else if(P3DX_dir==SW) angle=90;
+			else if(P3DX_dir==SE) angle=180;			
+			P3DX_dir=NW;
+			distance=DISTANCE_D;
+		}
+		else if(newy==y+1)
+		{
+			if(P3DX_dir==SW)      angle=0;
+			else if(P3DX_dir==S)  angle=45;
+			else if(P3DX_dir==E)  angle=135;
+			else if(P3DX_dir==W)  angle=-45;
+			else if(P3DX_dir==N)  angle=-135;
+			else if(P3DX_dir==NE) angle=180;
+			else if(P3DX_dir==NW) angle=-90;
+			else if(P3DX_dir==SE) angle=90;			
+			P3DX_dir=SW;
+			distance=DISTANCE_D;
+		}
+		else if(newy==y)
+		{
+			if(P3DX_dir==W)       angle=0;
+			else if(P3DX_dir==S)  angle=90;
+			else if(P3DX_dir==E)  angle=180;
+			else if(P3DX_dir==N)  angle=-90;
+			else if(P3DX_dir==NW) angle=-45;
+			else if(P3DX_dir==NE) angle=-135;
+			else if(P3DX_dir==SW) angle=45;
+			else if(P3DX_dir==SE) angle=135;			
+			P3DX_dir=W;
+			distance=DISTANCE_H;
+		}
+		
+	}      
+	else if(newx==x-1)		
+	{
+		if(newy==y-1)
+		{
+			if(P3DX_dir==NE)      angle=0;
+			else if(P3DX_dir==S)  angle=-135;
+			else if(P3DX_dir==E)  angle=-45;
+			else if(P3DX_dir==W)  angle=135;
+			else if(P3DX_dir==N)  angle=45;
+			else if(P3DX_dir==NW) angle=90;
+			else if(P3DX_dir==SW) angle=180;
+			else if(P3DX_dir==SE) angle=-90;			
+			P3DX_dir=NE;
+			distance=DISTANCE_D;
+		}
+		else if(newy==y+1)
+		{
+			if(P3DX_dir==SE)      angle=0;
+			else if(P3DX_dir==S)  angle=-45;
+			else if(P3DX_dir==E)  angle=45;
+			else if(P3DX_dir==W)  angle=-135;
+			else if(P3DX_dir==N)  angle=135;
+			else if(P3DX_dir==NE) angle=90;
+			else if(P3DX_dir==NW) angle=180;
+			else if(P3DX_dir==SW) angle=-90;			
+			P3DX_dir=SE;
+			distance=DISTANCE_D;
+		}
+		else if(newy==y)
+		{
+			if(P3DX_dir==E)       angle=0;
+			else if(P3DX_dir==S)  angle=-90;
+			else if(P3DX_dir==W)  angle=180;
+			else if(P3DX_dir==N)  angle=90;
+			else if(P3DX_dir==NW) angle=135;
+			else if(P3DX_dir==NE) angle=45;
+			else if(P3DX_dir==SW) angle=-135;
+			else if(P3DX_dir==SE) angle=-45;			
+			P3DX_dir=E;
+			distance=DISTANCE_H;
+		}
+	}
+	result[0]=distance; 
+	result[1]=angle; 
+}
+
+
+
+void start_fun(const sbpl_msg::sbpl_msg::ConstPtr& msg)
+{    
+start_flag=msg->start_P3DX_motion;
+x=msg->sbpl_present_x;
+y=msg->sbpl_present_y;
+newx=msg->sbpl_new_x;
+newy=msg->sbpl_new_y;    
+//ROS_INFO("start_flag=[%d] x=[%d ]y=[%d]newx=[%d]newy=[%d]",start_flag,x,y,newx,newy);
+} 
+
+int main(int argc, char **argv) 
+{
+  Aria::init();
+ros::init(argc,argv, "P3DX_motion");
+ros::NodeHandle n;
+ros::Publisher sbpl_wait_pub,sonar_pub;
+sbpl_wait_pub = n.advertise<sbpl_msg::sbpl_msg>("sbpl_wait",10);
+sonar_pub = n.advertise<sbpl_msg::sonar_msg>("sonar",10);
+ros::Subscriber start_sub = n.subscribe("sbpl_xy", 10, start_fun); 
+  ArArgumentParser argParser(&argc, argv);
+  ArSimpleConnector con(&argParser);
+  ArRobot robot;
+  sbpl_msg::sbpl_msg msg;
+  sbpl_msg::sonar_msg sonar; 
+  msg.sbpl_wait_flag=false; 
+int i=0;
+  // the connection handler from above
+  ConnHandler ch(&robot);
+
+  if(!Aria::parseArgs())
+  {
+    Aria::logOptions();
+    Aria::shutdown();
+    return 1;
+  }
+
+  if(!con.connectRobot(&robot))
+  {
+    ArLog::log(ArLog::Normal, "P3DX_sbpl: Could not connect to the robot. Exiting.");
+    return 1;
+  }
+
+  ArLog::log(ArLog::Normal, "P3DX_sbpl: Connected.");
+sleep(2); 
+  // Run the robot processing cycle in its own thread. Note that after starting this
+  // thread, we must lock and unlock the ArRobot object before and after
+  // accessing it.
+  ArTime start;
+ robot.runAsync(false); 
+while(ros::ok())
+{  	if(start_flag)
+		{ 	
+			go_P3DX(); 
+			ROS_INFO(" distance = %d angle=%d ",result[0],result[1]);
+			robot.lock();
+			robot.setDeltaHeading(result[1]);
+			robot.unlock();
+			start.setToNow();
+			while (1)
+			  {	    robot.lock();
+				    if (robot.isHeadingDone(5))
+				    { robot.unlock();
+				      break;
+				    }
+				    if (start.mSecSince() > 5000)
+				    { ROS_INFO("P3DX_sbpl: turn timed out\n");
+				      robot.unlock();
+				      break;
+				    }
+				    robot.unlock();
+				    ArUtil::sleep(100);
+			  }
+			 robot.lock();
+			 robot.move(result[0]);
+			 robot.unlock();
+			 start.setToNow();
+			 while (1)
+			 {
+				    robot.lock();
+				    if (robot.isMoveDone())
+				    { robot.unlock();
+				      break;
+				    }
+				    if (start.mSecSince() > 5000)
+				    { ROS_INFO("P3DX_sbpl: Distance timed out\n");
+				      robot.unlock();
+				      break;
+				    }   
+				    robot.unlock();
+				    ArUtil::sleep(50);
+			  }
+			// publish sonar value imediately after moving 
+			for(i=0;i<SONAR_NUM;i++)
+			 { 	if(i==0)
+					sonar.l=(robot.getSonarRange(i)<SONAR_THRESH);
+				if(i==1)
+					{ sonar.fl=(robot.getSonarRange(i)<SONAR_THRESH)||(robot.getSonarRange(i+1)<SONAR_THRESH); i++; } 
+				if(i==3)
+					{ sonar.f=(robot.getSonarRange(i)<SONAR_THRESH)||(robot.getSonarRange(i+1)<SONAR_THRESH); i++; }
+				if(i==5)
+					{ sonar.fr=(robot.getSonarRange(i)<SONAR_THRESH)||(robot.getSonarRange(i+1)<SONAR_THRESH); i++; } 
+				if(i==7)
+					sonar.r=(robot.getSonarRange(i)<SONAR_THRESH);
+				
+			 } 	
+			sonar.direction=P3DX_dir;
+			sbpl_wait_pub.publish(msg);
+			sonar_pub.publish(sonar); 				
+			start_flag=false;
+		} 
+	ros::spinOnce();
+}  
+  ROS_INFO("P3DX_sbpl: Done, shutting down Aria and exiting.\n");
+  Aria::shutdown();
+  return 0;
+}
+
